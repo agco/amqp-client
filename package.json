@@ -4,7 +4,7 @@
     "node": "6.2.1"
   },
   "version": "0.0.1",
-  "description": "Forkable base amqp worker app for AGCO",
+  "description": "A module for developing amqp consumers and producers",
   "main": "index.js",
   "scripts": {
     "lint": "eslint .",
