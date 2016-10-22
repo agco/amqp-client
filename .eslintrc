@@ -1,0 +1,12 @@
+{
+  "extends": "agco",
+  "plugins": ["perf-standard"],
+  "parserOptions": {
+    "sourceType": "module",
+  },
+  "rules": {
+    "perf-standard/no-instanceof-guard": 2,
+    "perf-standard/no-self-in-constructor": 2,
+    "perf-standard/check-function-inline": 1
+  }
+}

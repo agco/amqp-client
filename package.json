@@ -1,0 +1,49 @@
+{
+  "name": "agco-amqp-client",
+  "engines": {
+    "node": "6.2.1"
+  },
+  "version": "0.0.1",
+  "description": "Forkable base amqp worker app for AGCO",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "mocha": "mocha",
+    "test": "npm run lint && npm run mocha",
+    "coverage": "istanbul cover _mocha -- --recursive test/"
+  },
+  "keywords": [
+    "amqp",
+    "agco",
+    "worker"
+  ],
+  "author": "Ian Patton",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.4.2",
+    "amqplib-retry": "^1.1.7",
+    "bluebird": "^3.4.6"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "coveralls": "^2.11.14",
+    "eslint": "^2.2.0",
+    "eslint-config-agco": "0.0.6",
+    "eslint-plugin-import": "^1.4.0",
+    "eslint-plugin-perf-standard": "^1.0.3",
+    "istanbul": "^0.4.5",
+    "mocha": "^3.1.2",
+    "node-uuid": "^1.4.7"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agco/amqp-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agco/amqp-client/issues"
+  },
+  "homepage": "https://github.com/agco/amqp-client#readme"
+}

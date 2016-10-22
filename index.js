@@ -1,0 +1,56 @@
+const Promise = require('bluebird');
+const amqplib = require('amqplib');
+const retry = require('amqplib-retry');
+
+function AmqpClient(conf) {
+  this.config = conf || {};
+  this.conn = null;
+  this.channel = null;
+  this.connected = false;
+}
+
+AmqpClient.prototype.init = function init() {
+  if (this.connected) return Promise.reject();
+  return Promise
+    .resolve(amqplib.connect(this.config.rabbitMqUrl))
+    .then((conn) => {
+      this.conn = conn;
+      this.connected = true;
+      return this.conn.createChannel();
+    })
+    .tap((channel) => {
+      this.channel = channel;
+      const promises = [];
+      Object.keys(this.config.queues).forEach((queueName) => {
+        promises.push(channel.assertQueue(queueName, this.config.queues[queueName].options));
+      });
+      return Promise.all(promises);
+    });
+};
+
+AmqpClient.prototype.close = function close() {
+  if (!this.connected) return Promise.reject();
+  this.connected = false;
+  return Promise.resolve(this.channel.close());
+};
+
+AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler) {
+  return this.channel.consume(consumerQueue, retry({
+    channel: this.channel,
+    consumerQueue,
+    failureQueue,
+    handler,
+    delay: (attempts) => {
+      return attempts * 1.5 * 200;
+    }
+  }));
+};
+
+AmqpClient.prototype.publish = function publish(outputQueue, message) {
+  if (this.channel.sendToQueue(outputQueue, new Buffer(message))) {
+    return Promise.resolve();
+  }
+  return Promise.reject();
+};
+
+module.exports = AmqpClient;
