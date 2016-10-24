@@ -12,10 +12,21 @@ Provide a config in the following format. The queues object must contain at leas
 ```
 const config = {
   rabbitMqUrl: 'amqp://guest:guest@localhost:5672',
+  topicExchanges: {
+    'data.test': {
+      options: {
+        durable: true
+      }
+    }
+  },
   queues: {
     defaultWorkQueue: {
       options: {
         durable: true
+      },
+      bindToTopic: {
+        exchange: 'data.test',
+        key: '*'
       }
     },
     defaultFailQueue: {
@@ -35,7 +46,7 @@ const client = new AmqpClient(config);
 
 client.init()
 .then(() => {
-    client.publish('defaultWorkQueue', messageText);
+    return client.publish('data.test', 'someKey', messageText);
 })
 ```
 
@@ -53,7 +64,7 @@ const messageHandler = (msg) => {
 
 client.init()
 .then(() => {
-    client.consume('defaultWorkQueue', 'defaultFailQueue', messageHandler);
+    return client.consume('defaultWorkQueue', 'defaultFailQueue', messageHandler);
 })
 ```
 
