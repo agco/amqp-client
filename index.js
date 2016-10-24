@@ -21,8 +21,34 @@ AmqpClient.prototype.init = function init() {
     .tap((channel) => {
       this.channel = channel;
       const promises = [];
+      Object.keys(this.config.topicExchanges).forEach((topicExchangeName) => {
+        promises.push(
+          channel.assertExchange(
+            topicExchangeName,
+            'topic',
+            this.config.topicExchanges[topicExchangeName].options)
+        );
+      });
+      return Promise.all(promises);
+    })
+    .then(() => {
+      const promises = [];
       Object.keys(this.config.queues).forEach((queueName) => {
-        promises.push(channel.assertQueue(queueName, this.config.queues[queueName].options));
+        promises.push(
+          this.channel.assertQueue(
+            queueName,
+            this.config.queues[queueName].options
+          )
+        );
+        if (this.config.queues[queueName].bindToTopic) {
+          promises.push(
+            this.channel.bindQueue(
+              queueName,
+              this.config.queues[queueName].bindToTopic.exchange,
+              this.config.queues[queueName].bindToTopic.key
+            )
+          );
+        }
       });
       return Promise.all(promises);
     });
@@ -46,8 +72,8 @@ AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, han
   }));
 };
 
-AmqpClient.prototype.publish = function publish(outputQueue, message) {
-  if (this.channel.sendToQueue(outputQueue, new Buffer(message))) {
+AmqpClient.prototype.publish = function publish(ex, key, message) {
+  if (this.channel.publish(ex, key, new Buffer(message))) {
     return Promise.resolve();
   }
   return Promise.reject();

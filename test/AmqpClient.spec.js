@@ -6,10 +6,21 @@ chai.should();
 
 const config = {
   rabbitMqUrl: 'amqp://guest:guest@localhost:5672',
+  topicExchanges: {
+    'data.test': {
+      options: {
+        durable: true
+      }
+    }
+  },
   queues: {
     defaultWorkQueue: {
       options: {
         durable: true
+      },
+      bindToTopic: {
+        exchange: 'data.test',
+        key: '*'
       }
     },
     defaultFailQueue: {
@@ -42,7 +53,7 @@ describe('AmqpClient', () => {
       return Promise.resolve();
     })
     .then(() => {
-      return client.publish('defaultWorkQueue', messageText);
+      return client.publish('data.test', 'someKey', messageText);
     }).then(() => {
       return Promise
         .delay(500)
@@ -78,7 +89,7 @@ describe('AmqpClient - Failure Scenario', () => {
       client.close();
     });
 
-    client.publish('defaultWorkQueue', messageText);
+    client.publish('data.test', 'someOtherKey', messageText);
 
     setTimeout(() => {
       client2.consume('defaultWorkQueue', 'defaultFailQueue', (msg) => {
