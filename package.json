@@ -22,7 +22,8 @@
   "dependencies": {
     "amqplib": "^0.4.2",
     "amqplib-retry": "^1.1.7",
-    "bluebird": "^3.4.6"
+    "bluebird": "^3.4.6",
+    "node-uuid": "^1.4.7"
   },
   "devDependencies": {
     "chai": "^3.5.0",
@@ -32,8 +33,7 @@
     "eslint-plugin-import": "^1.4.0",
     "eslint-plugin-perf-standard": "^1.0.3",
     "istanbul": "^0.4.5",
-    "mocha": "^3.1.2",
-    "node-uuid": "^1.4.7"
+    "mocha": "^3.1.2"
   },
   "directories": {
     "test": "test"

@@ -1,6 +1,7 @@
 const Promise = require('bluebird');
 const amqplib = require('amqplib');
 const retry = require('amqplib-retry');
+const uuid = require('node-uuid');
 
 function AmqpClient(conf) {
   this.config = conf || {};
@@ -73,7 +74,11 @@ AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, han
 };
 
 AmqpClient.prototype.publish = function publish(ex, key, message) {
-  if (this.channel.publish(ex, key, new Buffer(message))) {
+  const messageId = uuid.v4();
+  const messageMeta = {
+    messageId
+  };
+  if (this.channel.publish(ex, key, new Buffer(message), messageMeta)) {
     return Promise.resolve();
   }
   return Promise.reject();
