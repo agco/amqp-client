@@ -11,7 +11,7 @@ function AmqpClient(conf) {
 }
 
 AmqpClient.prototype.init = function init() {
-  if (this.connected) return Promise.reject();
+  if (this.connected) return Promise.resolve();
   return Promise
     .resolve(amqplib.connect(this.config.rabbitMqUrl))
     .then((conn) => {
