@@ -1,7 +1,7 @@
 {
   "name": "agco-amqp-client",
   "engines": {
-    "node": "6.2.1"
+    "node": "4.2.2"
   },
   "version": "0.0.2",
   "description": "A module for developing amqp consumers and producers",

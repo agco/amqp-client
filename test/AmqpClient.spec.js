@@ -1,3 +1,5 @@
+'use strict'; // eslint-disable-line strict
+
 const Promise = require('bluebird');
 const AmqpClient = require('../index');
 const uuid = require('node-uuid');

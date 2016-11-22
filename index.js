@@ -1,3 +1,5 @@
+'use strict'; // eslint-disable-line strict
+
 const Promise = require('bluebird');
 const amqplib = require('amqp-connection-manager');
 const retry = require('amqplib-retry');
