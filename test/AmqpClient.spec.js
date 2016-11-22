@@ -3,7 +3,6 @@ const AmqpClient = require('../index');
 const uuid = require('node-uuid');
 const chai = require('chai');
 const expect = chai.expect;
-chai.should();
 
 const config = {
   rabbitMqUrl: 'amqp://guest:guest@localhost:5672',
@@ -82,7 +81,7 @@ describe('AmqpClient', () => {
   });
 });
 
-describe.skip('AmqpClient - Failure Scenario', () => {
+describe('AmqpClient - Failure Scenario', () => {
   const client = new AmqpClient(config);
   const client2 = new AmqpClient(config);
 
@@ -97,30 +96,29 @@ describe.skip('AmqpClient - Failure Scenario', () => {
     return client2.close();
   });
 
-  it('should produce and consume messages, and retry messages on failure', (done) => {
+  it('should produce and consume messages, and retry messages on failure', () => {
     const messageText = uuid.v4();
     console.log('third test', messageText);
     const received = [];
-    client.consume('defaultWorkQueue', 'defaultFailQueue', (msg) => {
+
+    const consumerPromise = client.consume('defaultWorkQueue', 'defaultFailQueue', (msg) => {
       console.log('    Client 1 Received message:', msg.content.toString());
       console.log('    Killing client 1 before processing...');
       client.close();
     });
 
-    client.publish('data.test', 'someOtherKey', messageText);
+    const publisherPromise = client.publish('data.test', 'someOtherKey', messageText);
 
-    setTimeout(() => {
+    return Promise.all([consumerPromise, publisherPromise])
+    .delay(500)
+    .then(() =>
       client2.consume('defaultWorkQueue', 'defaultFailQueue', (msg) => {
         console.log('    Received message:', msg.content.toString());
-        (msg.content.toString()).should.equal(messageText);
+        expect(msg.content.toString()).to.equal(messageText);
         received.push(msg.content.toString());
-        return Promise.resolve();
-      });
-    }, 500);
-
-    setTimeout(() => {
-      received[0].should.equal(messageText);
-      done();
-    }, 2000);
+      }))
+    .then(() => {
+      expect(received.pop()).to.equal(messageText);
+    });
   });
 });
