@@ -12,14 +12,14 @@ const setup = config => channel =>
         'topic',
         config.topicExchanges[topicExchangeName].options))
   .then(() =>
-    Promise.map(Object.keys(config.queues), queueName =>
-      channel.assertQueue(queueName, config.queues[queueName].options)
+    Promise.map([config.queue, config.queue.failQueue], queue =>
+      channel.assertQueue(queue.name, queue.options)
       .then(() =>
-        config.queues[queueName].bindToTopic ?
+        queue.binding ?
         channel.bindQueue(
-          queueName,
-          config.queues[queueName].bindToTopic.exchange,
-          config.queues[queueName].bindToTopic.key) :
+          queue.name,
+          queue.binding.exchange,
+          queue.binding.key) :
         Promise.resolve())));
 
 function AmqpClient(conf) {

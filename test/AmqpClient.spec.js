@@ -15,17 +15,17 @@ const config = {
       }
     }
   },
-  queues: {
-    defaultWorkQueue: {
-      options: {
-        durable: true
-      },
-      bindToTopic: {
-        exchange: 'data.test',
-        key: '*'
-      }
+  queue: {
+    name: 'defaultWorkQueue',
+    options: {
+      durable: true
     },
-    defaultFailQueue: {
+    binding: {
+      exchange: 'data.test',
+      key: '*'
+    },
+    failQueue: {
+      name: 'defaultFailQueue',
       options: {
         durable: true
       }
@@ -38,11 +38,9 @@ describe('AmqpClient', () => {
 
   beforeEach(() => {
     client = new AmqpClient(config);
-    return client.init();
+    return client.init().delay(100);
   });
-  afterEach(() => {
-    client.close();
-  });
+  afterEach(() => client.close());
 
   it('produces and consumes messages', () => {
     const messageText = uuid.v4();
