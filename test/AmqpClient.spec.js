@@ -34,15 +34,11 @@ const config = {
 };
 
 describe('AmqpClient', () => {
-  let client;
+  const client = new AmqpClient(config);
 
-  beforeEach(() => {
-    client = new AmqpClient(config);
-    return client.init();
-  });
-  afterEach(() => {
-    client.close();
-  });
+  beforeEach(() => client.init().delay(100));
+
+  afterEach(() => client.close());
 
   it('produces and consumes messages', () => {
     const messageText = uuid.v4();
@@ -91,12 +87,10 @@ describe('AmqpClient - Failure Scenario', () => {
     return client.init()
     .then(() => {
       return client2.init();
-    });
+    }).delay(100);
   });
 
-  after(() => {
-    return client2.close();
-  });
+  after(() => client2.close());
 
   it('should produce and consume messages, and retry messages on failure', () => {
     const messageText = uuid.v4();
@@ -121,6 +115,34 @@ describe('AmqpClient - Failure Scenario', () => {
       }))
     .then(() => {
       expect(received.pop()).to.equal(messageText);
+    });
+  });
+});
+
+
+describe('AmqpClient - Failure Scenario', () => {
+  const client = new AmqpClient(config);
+
+  /* delay to wait for queues to be created*/
+  before(() => client.init().delay(100));
+
+  after(() => client.close());
+
+  describe('when maxAttempts is provided and message was rejected that many times', () => {
+    it('should move message to failure queue', () => {
+      let attempts = 0;
+      let failQueueMessages = 0;
+      const messageText = uuid.v4();
+      const maxAttempts = 3;
+      return Promise.resolve()
+        .then(() => client.consume('defaultWorkQueue', 'defaultFailQueue',
+          () => Promise.reject(`Fail always: ${attempts++}`), maxAttempts))
+        .then(() => client.publish('data.test', 'someOtherKey', messageText))
+        .delay(5000)
+        .then(() => expect(attempts).to.equal(maxAttempts))
+        .then(() => client.consume('defaultFailQueue', 'defaultFailQueue', () => failQueueMessages++, 1))
+        .delay(100)
+        .then(() => expect(failQueueMessages).to.equal(1));
     });
   });
 });
