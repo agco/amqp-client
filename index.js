@@ -35,7 +35,8 @@ AmqpClient.prototype.init = function init() {
   this.conn = amqplib.connect(this.config.rabbitMqUrl);
   this.connected = true;
   this.channel = this.conn.createChannel({ setup: setup(this.config) });
-  return Promise.resolve(this.channel);
+  return new Promise((resolve) => this.conn.once('connect', resolve))
+    .then(() => this.channel);
 };
 
 AmqpClient.prototype.close = function close() {
@@ -44,7 +45,7 @@ AmqpClient.prototype.close = function close() {
   return this.channel.close();
 };
 
-AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler) {
+AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler, maxAttempts) {
   return this.channel.addSetup(channel =>
     channel.consume(
       consumerQueue,
@@ -53,7 +54,7 @@ AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, han
         consumerQueue,
         failureQueue,
         handler,
-        delay: (attempts) => attempts * 1.5 * 200
+        delay: (attempts) => maxAttempts && (attempts > maxAttempts - 1) ? 0 : attempts * 1.5 * 200
       })
     ));
 };
