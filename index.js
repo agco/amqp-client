@@ -20,7 +20,8 @@ const setup = config => channel =>
           queueName,
           config.queues[queueName].bindToTopic.exchange,
           config.queues[queueName].bindToTopic.key) :
-        Promise.resolve())));
+        Promise.resolve())))
+    .then(() => config.prefetch ? channel.prefetch(config.prefetch) : null);
 
 function AmqpClient(conf) {
   this.config = conf || {};
