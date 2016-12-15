@@ -31,24 +31,31 @@ function AmqpClient(conf) {
 }
 
 AmqpClient.prototype.init = function init() {
-  if (this.connected) return Promise.resolve();
+  if (this.connected) {
+    return Promise.resolve();
+  }
 
   this.conn = amqplib.connect(this.config.rabbitMqUrl);
   this.connected = true;
-  this.channel = this.conn.createChannel({ setup: setup(this.config) });
   return new Promise((resolve) => this.conn.once('connect', resolve))
-    .then(() => this.channel);
+    .then(() => {
+      this.channel = this.conn.createChannel({ setup: setup(this.config) });
+      return this.channel;
+    });
 };
 
 AmqpClient.prototype.close = function close() {
   if (!this.connected) return Promise.reject();
   this.connected = false;
-  return this.channel.close();
+  return this.channel.close().then(() => this.conn.close());
 };
 
 AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler, maxAttempts) {
-  return this.channel.addSetup(channel =>
-    channel.consume(
+  const channelWrapper = this.channel;
+  let consumerTag;
+
+  function consumeSetup(channel) {
+    return channel.consume(
       consumerQueue,
       retry({
         channel,
@@ -57,7 +64,23 @@ AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, han
         handler,
         delay: (attempts) => maxAttempts && (attempts > maxAttempts - 1) ? 0 : attempts * 1.5 * 200
       })
-    ));
+    ).then(opts => {
+      consumerTag = opts.consumerTag;
+      return opts;
+    });
+  }
+
+  function removeConsumer() {
+    return channelWrapper.removeSetup(consumeSetup, channel => {
+      if (consumerTag) {
+        return channel.cancel(consumerTag);
+      }
+      return Promise.resolve();
+    });
+  }
+
+  return this.channel.addSetup(consumeSetup)
+    .then(() => removeConsumer);
 };
 
 AmqpClient.prototype.publish = function publish(ex, key, message) {
