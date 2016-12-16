@@ -4,6 +4,7 @@ const Promise = require('bluebird');
 const AmqpClient = require('../index');
 const uuid = require('node-uuid');
 const chai = require('chai');
+const $http = require('http-as-promised');
 const expect = chai.expect;
 
 const config = {
@@ -33,10 +34,24 @@ const config = {
   }
 };
 
+function removeQueue(queueName) {
+  return $http.del(`http://guest:guest@localhost:15672/api/queues/%2F/${queueName}`)
+      .catch(err => {
+        if (!err || err.statusCode !== 404) {
+          throw err;
+        }
+      });
+}
+
 describe('AmqpClient', () => {
   const client = new AmqpClient(config);
 
-  beforeEach(() => client.init().delay(100));
+  beforeEach(() => Promise.all([
+    removeQueue('defaultWorkQueue'),
+    removeQueue('defaultFailQueue'),
+    removeQueue('amqplib-retry.delayed'),
+    removeQueue('amqplib-retry.ready')
+  ]).then(() => client.init().delay(100)));
 
   afterEach(() => client.close());
 
@@ -76,6 +91,30 @@ describe('AmqpClient', () => {
     .then(() => {
       expect(received.pop()).to.equal(messageText);
     });
+  });
+
+  it('should be able to stop consuming without disconnecting', () => {
+    const messages = [];
+    let disconnectConsumer1;
+    return Promise.resolve()
+      .then(() => client.consume('defaultWorkQueue', 'defaultFailQueue', (msg) => messages.push(msg), 1))
+      .then(result => {
+        disconnectConsumer1 = result;
+      })
+      .then(() => client.publish('', 'defaultWorkQueue', new Buffer('1'))).delay(100)
+      .then(() => disconnectConsumer1())
+      .then(() => client.publish('', 'defaultWorkQueue', new Buffer('2'))).delay(500)
+      .then(() => {
+        expect(messages.length).to.equal(1);
+        expect(messages[0].content.toString()).to.equal('1');
+      })
+      .then(() => client.consume('defaultWorkQueue', 'defaultFailQueue', (msg) => messages.push(msg), 1))
+      .delay(500)
+      .then(() => {
+        expect(messages.length).to.equal(2);
+        expect(messages[0].content.toString()).to.equal('1');
+        expect(messages[1].content.toString()).to.equal('2');
+      });
   });
 });
 
@@ -143,6 +182,27 @@ describe('AmqpClient - Failure Scenario', () => {
         .then(() => client.consume('defaultFailQueue', 'defaultFailQueue', () => failQueueMessages++, 1))
         .delay(100)
         .then(() => expect(failQueueMessages).to.equal(1));
+    });
+  });
+});
+
+describe('init', () => {
+  describe('when queues do not exist', () => {
+    let client;
+
+    before(() => {
+      client = new AmqpClient(config);
+    });
+
+    after(() => client && client.close());
+
+    it('should wait until queues are created before resolving', () => {
+      return Promise.resolve()
+        .then(() => client.init())
+        .then(() => Promise.all([
+          new Promise(resolve => client.consume('defaultWorkQueue', 'defaultFailQueue', resolve, 1)),
+          Promise.resolve().then(() => client.publish('', 'defaultWorkQueue', 'abc')).delay(100)
+        ]));
     });
   });
 });
