@@ -185,3 +185,24 @@ describe('AmqpClient - Failure Scenario', () => {
     });
   });
 });
+
+describe('init', () => {
+  describe('when queues do not exist', () => {
+    let client;
+
+    before(() => {
+      client = new AmqpClient(config);
+    });
+
+    after(() => client && client.close());
+
+    it('should wait until queues are created before resolving', () => {
+      return Promise.resolve()
+        .then(() => client.init())
+        .then(() => Promise.all([
+          new Promise(resolve => client.consume('defaultWorkQueue', 'defaultFailQueue', resolve, 1)),
+          Promise.resolve().then(() => client.publish('', 'defaultWorkQueue', 'abc')).delay(100)
+        ]));
+    });
+  });
+});

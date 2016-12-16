@@ -36,12 +36,11 @@ AmqpClient.prototype.init = function init() {
   }
 
   this.conn = amqplib.connect(this.config.rabbitMqUrl);
+  this.channel = this.conn.createChannel();
   this.connected = true;
-  return new Promise((resolve) => this.conn.once('connect', resolve))
-    .then(() => {
-      this.channel = this.conn.createChannel({ setup: setup(this.config) });
-      return this.channel;
-    });
+  return new Promise((resolve) => this.channel.once('connect', resolve))
+    .then(() => this.channel.addSetup(setup(this.config)))
+    .then(() => this.channel);
 };
 
 AmqpClient.prototype.close = function close() {
@@ -88,10 +87,7 @@ AmqpClient.prototype.publish = function publish(ex, key, message) {
   const messageMeta = {
     messageId
   };
-  if (this.channel.publish(ex, key, new Buffer(message), messageMeta)) {
-    return Promise.resolve();
-  }
-  return Promise.reject();
+  return this.channel.publish(ex, key, new Buffer(message), messageMeta);
 };
 
 module.exports = AmqpClient;
