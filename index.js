@@ -1,7 +1,27 @@
+'use strict'; // eslint-disable-line strict
+
 const Promise = require('bluebird');
-const amqplib = require('amqplib');
+const amqplib = require('amqp-connection-manager');
 const retry = require('amqplib-retry');
 const uuid = require('node-uuid');
+
+const setup = config => channel =>
+  Promise.map(Object.keys(config.topicExchanges), topicExchangeName =>
+    channel.assertExchange(
+        topicExchangeName,
+        'topic',
+        config.topicExchanges[topicExchangeName].options))
+  .then(() =>
+    Promise.map(Object.keys(config.queues), queueName =>
+      channel.assertQueue(queueName, config.queues[queueName].options)
+      .then(() =>
+        config.queues[queueName].bindToTopic ?
+        channel.bindQueue(
+          queueName,
+          config.queues[queueName].bindToTopic.exchange,
+          config.queues[queueName].bindToTopic.key) :
+        Promise.resolve())))
+    .then(() => config.prefetch ? channel.prefetch(config.prefetch) : null);
 
 function AmqpClient(conf) {
   this.config = conf || {};
@@ -11,66 +31,56 @@ function AmqpClient(conf) {
 }
 
 AmqpClient.prototype.init = function init() {
-  if (this.connected) return Promise.resolve();
-  return Promise
-    .resolve(amqplib.connect(this.config.rabbitMqUrl))
-    .then((conn) => {
-      this.conn = conn;
-      this.connected = true;
-      return this.conn.createChannel();
-    })
-    .tap((channel) => {
-      this.channel = channel;
-      const promises = [];
-      Object.keys(this.config.topicExchanges).forEach((topicExchangeName) => {
-        promises.push(
-          channel.assertExchange(
-            topicExchangeName,
-            'topic',
-            this.config.topicExchanges[topicExchangeName].options)
-        );
-      });
-      return Promise.all(promises);
-    })
+  if (this.connected) {
+    return Promise.resolve();
+  }
+
+  this.conn = amqplib.connect(this.config.rabbitMqUrl);
+  this.connected = true;
+  return new Promise((resolve) => this.conn.once('connect', resolve))
     .then(() => {
-      const promises = [];
-      Object.keys(this.config.queues).forEach((queueName) => {
-        promises.push(
-          this.channel.assertQueue(
-            queueName,
-            this.config.queues[queueName].options
-          )
-        );
-        if (this.config.queues[queueName].bindToTopic) {
-          promises.push(
-            this.channel.bindQueue(
-              queueName,
-              this.config.queues[queueName].bindToTopic.exchange,
-              this.config.queues[queueName].bindToTopic.key
-            )
-          );
-        }
-      });
-      return Promise.all(promises);
+      this.channel = this.conn.createChannel({ setup: setup(this.config) });
+      return this.channel;
     });
 };
 
 AmqpClient.prototype.close = function close() {
   if (!this.connected) return Promise.reject();
   this.connected = false;
-  return Promise.resolve(this.channel.close());
+  return this.channel.close().then(() => this.conn.close());
 };
 
-AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler) {
-  return this.channel.consume(consumerQueue, retry({
-    channel: this.channel,
-    consumerQueue,
-    failureQueue,
-    handler,
-    delay: (attempts) => {
-      return attempts * 1.5 * 200;
-    }
-  }));
+AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler, maxAttempts) {
+  const channelWrapper = this.channel;
+  let consumerTag;
+
+  function consumeSetup(channel) {
+    return channel.consume(
+      consumerQueue,
+      retry({
+        channel,
+        consumerQueue,
+        failureQueue,
+        handler,
+        delay: (attempts) => maxAttempts && (attempts > maxAttempts - 1) ? 0 : attempts * 1.5 * 200
+      })
+    ).then(opts => {
+      consumerTag = opts.consumerTag;
+      return opts;
+    });
+  }
+
+  function removeConsumer() {
+    return channelWrapper.removeSetup(consumeSetup, channel => {
+      if (consumerTag) {
+        return channel.cancel(consumerTag);
+      }
+      return Promise.resolve();
+    });
+  }
+
+  return this.channel.addSetup(consumeSetup)
+    .then(() => removeConsumer);
 };
 
 AmqpClient.prototype.publish = function publish(ex, key, message, options) {
