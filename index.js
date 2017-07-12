@@ -76,9 +76,10 @@ AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, han
 AmqpClient.prototype.publish = function publish(ex, key, message, options) {
   const messageId = uuid.v4();
   const messageMeta = {
-    messageId
+    messageId,
+    persistent: options && options.persistent,
+    headers: options && options.headers
   };
-  if (options) messageMeta.persistent = options.persistent;
   if (this.channel.publish(ex, key, new Buffer(message), messageMeta)) {
     return Promise.resolve();
   }

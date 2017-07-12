@@ -53,7 +53,12 @@ describe('AmqpClient', () => {
       return Promise.resolve();
     })
     .then(() => {
-      return client.publish('data.test', 'someKey', messageText);
+      return client.publish('data.test', 'someKey', messageText, {
+        persistent: true,
+        headers: {
+          cause: 'badFrame'
+        }
+      });
     }).then(() => {
       return Promise
         .delay(500)
