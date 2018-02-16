@@ -2,7 +2,7 @@
   "extends": "agco",
   "plugins": ["perf-standard"],
   "parserOptions": {
-    "sourceType": "module",
+    "sourceType": "module"
   },
   "rules": {
     "perf-standard/no-instanceof-guard": 2,
