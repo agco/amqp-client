@@ -74,11 +74,19 @@ describe('AmqpClient', () => {
       return Promise.resolve();
     }))
     .then(() => {
-      return client.publish('data.test', 'someKey', messageText);
-    })
-    .delay(500)
-    .then(() => {
-      expect(received.pop()).to.equal(messageText);
+      return client.publish('data.test', 'someKey', messageText, {
+        persistent: true,
+        headers: {
+          cause: 'badFrame'
+        }
+      });
+    }).then(() => {
+      return Promise
+        .delay(500)
+        .then(() => {
+          (received[1]).should.equal(messageText);
+          return Promise.resolve();
+        });
     });
   });
 });
