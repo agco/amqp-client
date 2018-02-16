@@ -1,26 +1,7 @@
-'use strict'; // eslint-disable-line strict
-
 const Promise = require('bluebird');
-const amqplib = require('amqp-connection-manager');
+const amqplib = require('amqplib');
 const retry = require('amqplib-retry');
 const uuid = require('node-uuid');
-
-const setup = config => channel =>
-  Promise.map(Object.keys(config.topicExchanges), topicExchangeName =>
-    channel.assertExchange(
-        topicExchangeName,
-        'topic',
-        config.topicExchanges[topicExchangeName].options))
-  .then(() =>
-    Promise.map(Object.keys(config.queues), queueName =>
-      channel.assertQueue(queueName, config.queues[queueName].options)
-      .then(() =>
-        config.queues[queueName].bindToTopic ?
-        channel.bindQueue(
-          queueName,
-          config.queues[queueName].bindToTopic.exchange,
-          config.queues[queueName].bindToTopic.key) :
-        Promise.resolve())));
 
 function AmqpClient(conf) {
   this.config = conf || {};
@@ -31,31 +12,65 @@ function AmqpClient(conf) {
 
 AmqpClient.prototype.init = function init() {
   if (this.connected) return Promise.resolve();
-
-  this.conn = amqplib.connect(this.config.rabbitMqUrl);
-  this.connected = true;
-  this.channel = this.conn.createChannel({ setup: setup(this.config) });
-  return Promise.resolve(this.channel);
+  return Promise
+    .resolve(amqplib.connect(this.config.rabbitMqUrl))
+    .then((conn) => {
+      this.conn = conn;
+      this.connected = true;
+      return this.conn.createChannel();
+    })
+    .tap((channel) => {
+      this.channel = channel;
+      const promises = [];
+      Object.keys(this.config.topicExchanges).forEach((topicExchangeName) => {
+        promises.push(
+          channel.assertExchange(
+            topicExchangeName,
+            'topic',
+            this.config.topicExchanges[topicExchangeName].options)
+        );
+      });
+      return Promise.all(promises);
+    })
+    .then(() => {
+      const promises = [];
+      Object.keys(this.config.queues).forEach((queueName) => {
+        promises.push(
+          this.channel.assertQueue(
+            queueName,
+            this.config.queues[queueName].options
+          )
+        );
+        if (this.config.queues[queueName].bindToTopic) {
+          promises.push(
+            this.channel.bindQueue(
+              queueName,
+              this.config.queues[queueName].bindToTopic.exchange,
+              this.config.queues[queueName].bindToTopic.key
+            )
+          );
+        }
+      });
+      return Promise.all(promises);
+    });
 };
 
 AmqpClient.prototype.close = function close() {
   if (!this.connected) return Promise.reject();
   this.connected = false;
-  return this.channel.close();
+  return Promise.resolve(this.channel.close());
 };
 
 AmqpClient.prototype.consume = function consume(consumerQueue, failureQueue, handler) {
-  return this.channel.addSetup(channel =>
-    channel.consume(
-      consumerQueue,
-      retry({
-        channel,
-        consumerQueue,
-        failureQueue,
-        handler,
-        delay: (attempts) => attempts * 1.5 * 200
-      })
-    ));
+  return this.channel.consume(consumerQueue, retry({
+    channel: this.channel,
+    consumerQueue,
+    failureQueue,
+    handler,
+    delay: (attempts) => {
+      return attempts * 1.5 * 200;
+    }
+  }));
 };
 
 AmqpClient.prototype.publish = function publish(ex, key, message, options) {
